@@ -15,24 +15,18 @@ def guess_old_style_used_threads(bench_name, num_threads):
     if bench_name == 'CPU FFT':
         if num_threads >= 4:
             return 4
-        if num_threads >= 2:
-            return 2
-        return 1
-    if bench_name == 'CPU N-Queens':
+        else:
+            return 2 if num_threads >= 2 else 1
+    elif bench_name == 'CPU N-Queens':
         if num_threads >= 10:
             return 10
         if num_threads >= 5:
             return 5
-        if num_threads >= 2:
-            return 2
-        return 1
+        return 2 if num_threads >= 2 else 1
     return num_threads
 
 def first_truthy_or_none(*args):
-    for arg in args:
-        if arg:
-            return arg
-    return None
+    return next((arg for arg in args if arg), None)
 
 def nice_cpu_name(name,
         trademark_stuff = re.compile(r'\((r|tm|c)\)', re.I),
@@ -51,9 +45,9 @@ def nice_cpu_name(name,
 
     name = name.replace("@", "")
 
-    # Move vendor to front
-    match = first_truthy_or_none(vendor_intel.search(name), vendor_amd.search(name))
-    if match:
+    if match := first_truthy_or_none(
+        vendor_intel.search(name), vendor_amd.search(name)
+    ):
         span = match.span()
         name = name[span[0]:span[1]] + name[:span[0]] + name[span[1]:]
 
@@ -113,7 +107,7 @@ def guess_old_style_cpu_config(cpu_config, num_logical_cpus,
     if cpu_config_less(cpu_config, candidate_config) and \
             not cpu_config_is_close(cpu_config, candidate_config):
         return candidate_config
-    
+
     return cpu_config
 
 def parse_old_style_cpu_info(cpu_config, cpu_name, bench_name,
@@ -155,8 +149,8 @@ def parse_new_style_bench_value(value):
         threads_used = 0
 
     benchmark_version = int(values[3]) if len(values) >= 4 else 1
-    extra = values[4] if len(values) >= 5 and not '|' in values[4] else ''
-    user_note = values[5] if len(values) >= 6 and not '|' in values[5] else ''
+    extra = values[4] if len(values) >= 5 and '|' not in values[4] else ''
+    user_note = values[5] if len(values) >= 6 and '|' not in values[5] else ''
 
     return {
         'BenchmarkResult': result,
@@ -198,7 +192,7 @@ if __name__ == '__main__':
                     'NumThreads': int(values[9]),
                     'Legacy': False,
                 }
-                bench.update(parse_new_style_bench_value(values[0]))
+                bench |= parse_new_style_bench_value(values[0])
                 if len(values) >= 11:
                     bench['OpenGlRenderer'] = values[10]
                 if len(values) >= 12:
@@ -220,7 +214,7 @@ if __name__ == '__main__':
                 }
 
                 cpu_info = parse_old_style_cpu_info(values[1].replace(",", "."), key, section)
-                bench.update(cpu_info)
+                bench |= cpu_info
                 bench['MachineId'] = generate_machine_id(bench)
             else:
                 raise SyntaxError("unexpected value length: %d (%s)" % (len(values), values))
